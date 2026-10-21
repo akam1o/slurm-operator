@@ -24,6 +24,7 @@ import (
 	"github.com/SlinkyProject/slurm-operator/internal/builder/labels"
 	loginbuilder "github.com/SlinkyProject/slurm-operator/internal/builder/loginbuilder"
 	"github.com/SlinkyProject/slurm-operator/internal/builder/metadata"
+	"github.com/SlinkyProject/slurm-operator/internal/defaults"
 	"github.com/SlinkyProject/slurm-operator/internal/utils/crypto"
 	"github.com/SlinkyProject/slurm-operator/internal/utils/structutils"
 	slurmtaints "github.com/SlinkyProject/slurm-operator/pkg/taints"
@@ -200,30 +201,41 @@ func (b *WorkerBuilder) slurmdContainer(nodeset *slinkyv1beta1.NodeSet, controll
 		})
 	}
 
-	cpus, memory := b.getResourceLimits(&nodeset.Spec)
+	env := []corev1.EnvVar{
+		{
+			Name: "POD_TOPOLOGY",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: fmt.Sprintf("metadata.annotations['%s']", slinkyv1beta1.AnnotationNodeTopologySpec),
+				},
+			},
+		},
+	}
+
+	// The slurmd image entrypoint derives CoreSpecCount and MemSpecLimit from
+	// POD_CPUS and POD_MEMORY and appends them to the slurmd --conf argument.
+	// Skip them entirely when the NodeSet opts out of resource limit
+	// propagation, so slurmd registers with the CPUs and memory it detects on
+	// the host.
+	if ptr.Deref(nodeset.Spec.PropagateResourceLimits, defaults.DefaultNodeSetPropagateResourceLimits) {
+		cpus, memory := b.getResourceLimits(&nodeset.Spec)
+		env = append(env,
+			corev1.EnvVar{
+				Name:  "POD_CPUS",
+				Value: strconv.FormatInt(cpus, 10),
+			},
+			corev1.EnvVar{
+				Name:  "POD_MEMORY",
+				Value: strconv.FormatInt(memory, 10),
+			},
+		)
+	}
 
 	opts := common.ContainerOpts{
 		Base: corev1.Container{
-			Name: labels.WorkerApp,
-			Args: slurmdArgs(nodeset, controller),
-			Env: []corev1.EnvVar{
-				{
-					Name: "POD_TOPOLOGY",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: fmt.Sprintf("metadata.annotations['%s']", slinkyv1beta1.AnnotationNodeTopologySpec),
-						},
-					},
-				},
-				{
-					Name:  "POD_CPUS",
-					Value: strconv.FormatInt(cpus, 10),
-				},
-				{
-					Name:  "POD_MEMORY",
-					Value: strconv.FormatInt(memory, 10),
-				},
-			},
+			Name:  labels.WorkerApp,
+			Args:  slurmdArgs(nodeset, controller),
+			Env:   env,
 			Ports: ports,
 			StartupProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{

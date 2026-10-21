@@ -28,6 +28,13 @@
 - Increase e2e nodeset timeout.
 - Wait for generated workloads in e2e tests.
 
+### Added
+
+- Added NodeSet `propagateResourceLimits` option to control whether the
+  operator propagates pod resource limits to slurmd as `CoreSpecCount` and
+  `MemSpecLimit`. Set to `false` when the node's CPU topology and reserved
+  resources are managed externally.
+
 ## v1.2.2
 
 ### Fixed

@@ -168,6 +168,16 @@ tests:
       - equal:
           path: spec.pinToNode
           value: true
+  - it: should set propagateResourceLimits
+    set:
+      nodesets:
+        slinky:
+          enabled: true
+          propagateResourceLimits: false
+    asserts:
+      - equal:
+          path: spec.propagateResourceLimits
+          value: false
   - it: should not use priority class
     set:
       priorityClass:

@@ -148,6 +148,21 @@ type NodeSetSpec struct {
 	// +optional
 	// +default:=false
 	OversubscribeNode bool `json:"oversubscribeNode,omitempty"`
+
+	// PropagateResourceLimits controls whether the pod's resource limits are
+	// propagated to slurmd via the POD_CPUS and POD_MEMORY environment
+	// variables. The slurmd container image entrypoint uses those variables to
+	// derive `CoreSpecCount` and `MemSpecLimit` and injects them into the slurmd
+	// `--conf` argument, which restricts the CPUs and memory available to Slurm
+	// jobs. Set this to false when the node's CPU topology and reserved
+	// resources are managed externally, e.g. when the Slurm node is being
+	// migrated to Kubernetes and should keep its existing allocation.
+	// Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_CoreSpecCount
+	// Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_MemSpecLimit
+	// Ref: https://slurm.schedmd.com/core_spec.html
+	// +optional
+	// +default:=true
+	PropagateResourceLimits *bool `json:"propagateResourceLimits,omitempty"`
 }
 
 // ScalingModeType is a string enumeration of how a NodeSet scales its pods.

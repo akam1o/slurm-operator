@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	"k8s.io/utils/set"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -341,6 +342,76 @@ func TestWorkerBuilder_getResourceLimits(t *testing.T) {
 
 			require.Equal(t, tt.want.cpu, cpu)
 			require.Equal(t, tt.want.memory, memory)
+		})
+	}
+}
+
+func TestWorkerBuilder_slurmdContainerResourceLimitEnv(t *testing.T) {
+	cpu4, err := resource.ParseQuantity("4")
+	require.NoError(t, err)
+	mem2g, err := resource.ParseQuantity("2Gi")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                    string
+		propagateResourceLimits *bool
+		wantEnv                 map[string]string
+	}{
+		{
+			name:                    "unset defaults to propagation",
+			propagateResourceLimits: nil,
+			wantEnv:                 map[string]string{"POD_CPUS": "4", "POD_MEMORY": "2048"},
+		},
+		{
+			name:                    "true propagates POD_CPUS and POD_MEMORY",
+			propagateResourceLimits: ptr.To(true),
+			wantEnv:                 map[string]string{"POD_CPUS": "4", "POD_MEMORY": "2048"},
+		},
+		{
+			name:                    "false omits resource limit env",
+			propagateResourceLimits: ptr.To(false),
+			wantEnv:                 map[string]string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodeset := &slinkyv1beta1.NodeSet{
+				ObjectMeta: metav1.ObjectMeta{Name: "slurm-foo"},
+				Spec: slinkyv1beta1.NodeSetSpec{
+					ControllerRef:           corev1.LocalObjectReference{Name: "slurm"},
+					PropagateResourceLimits: tt.propagateResourceLimits,
+					Slurmd: slinkyv1beta1.ContainerWrapper{
+						Container: corev1.Container{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									"cpu":    cpu4,
+									"memory": mem2g,
+								},
+							},
+						},
+					},
+				},
+			}
+			controller := &slinkyv1beta1.Controller{ObjectMeta: metav1.ObjectMeta{Name: "slurm"}}
+
+			b := New(fake.NewFakeClient())
+			got := b.slurmdContainer(nodeset, controller)
+
+			gotEnv := map[string]string{}
+			for _, e := range got.Env {
+				gotEnv[e.Name] = e.Value
+			}
+			for name, value := range tt.wantEnv {
+				require.Equal(t, value, gotEnv[name], "env %s", name)
+			}
+			wantPropagation := ptr.Deref(tt.propagateResourceLimits, true)
+			_, hasCpus := gotEnv["POD_CPUS"]
+			_, hasMemory := gotEnv["POD_MEMORY"]
+			require.Equal(t, wantPropagation, hasCpus, "POD_CPUS presence")
+			require.Equal(t, wantPropagation, hasMemory, "POD_MEMORY presence")
+			// POD_TOPOLOGY is always present regardless of propagation.
+			_, hasTopology := gotEnv["POD_TOPOLOGY"]
+			require.True(t, hasTopology, "POD_TOPOLOGY presence")
 		})
 	}
 }

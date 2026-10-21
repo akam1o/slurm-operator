@@ -751,6 +751,11 @@ nodesetDefaults:
   # -- Indicates these NodeSet Pods can reside on the same Kubernetes Node (no anti-affinity).
   # WARNING: This option is **NOT** recommended for production usage.
   oversubscribeNode: false
+  # -- Propagate the pod `resources.limits` into slurmd as `CoreSpecCount` and `MemSpecLimit`.
+  # Disable when the node's CPU topology and reserved resources are managed externally.
+  # Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_CoreSpecCount
+  # Ref: https://slurm.schedmd.com/slurm.conf.html#OPT_MemSpecLimit
+  propagateResourceLimits: true
   # slurmd container configurations.
   slurmd:
     # -- (string \| object) The image to use.

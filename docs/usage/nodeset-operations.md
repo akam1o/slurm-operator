@@ -23,6 +23,7 @@ primitives. For design-level details, see
   - [Customizing the slurmd preStop Hook](#customizing-the-slurmd-prestop-hook)
   - [External Drain Preservation](#external-drain-preservation)
   - [External Health Checker Integration Pattern](#external-health-checker-integration-pattern)
+  - [Disabling Resource Limit Propagation](#disabling-resource-limit-propagation)
   - [Node Identity](#node-identity)
     - [StatefulSet Mode](#statefulset-mode)
       - [Node Pinning](#node-pinning)
@@ -368,6 +369,46 @@ sequenceDiagram
 
 See [Override with Node Annotation](#override-with-node-annotation) and
 [Cordoning Pods](#cordoning-pods) for the kubectl commands used in each step.
+
+## Disabling Resource Limit Propagation
+
+By default, the operator injects `POD_CPUS` and `POD_MEMORY` environment
+variables into the slurmd container, derived from the NodeSet's pod or
+container `resources.limits`. The slurmd image entrypoint uses those values to
+compute [CoreSpecCount] and [MemSpecLimit] and appends them to the slurmd
+`--conf` argument at registration. This reserves the CPUs and memory Slurm
+should not hand out to jobs so that the pod's limits are honored on the host.
+
+If the Slurm node's CPU topology and reserved resources are managed externally
+— for example when migrating an existing Slurm cluster onto Kubernetes and the
+node set must match the bare-metal topology — set
+`spec.propagateResourceLimits` to `false` to stop this propagation:
+
+```yaml
+apiVersion: slinky.slurm.net/v1beta1
+kind: NodeSet
+metadata:
+  name: slurm-compute
+spec:
+  propagateResourceLimits: false
+```
+
+The equivalent through the `slurm` Helm chart:
+
+```yaml
+nodesets:
+  slinky:
+    propagateResourceLimits: false
+```
+
+With `propagateResourceLimits` disabled, slurmd registers with the CPUs and
+memory it detects on the host; no `CoreSpecCount` or `MemSpecLimit` is added to
+`--conf`.
+
+<!-- Links -->
+
+[corespeccount]: https://slurm.schedmd.com/slurm.conf.html#OPT_CoreSpecCount
+[memspeclimit]: https://slurm.schedmd.com/slurm.conf.html#OPT_MemSpecLimit
 
 ## Node Identity
 

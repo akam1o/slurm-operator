@@ -66,5 +66,6 @@ spec:
   workloadDisruptionProtection: {{ $nodeset.workloadDisruptionProtection }}
   pruneSlurmNodeRecords: {{ $nodeset.pruneSlurmNodeRecords }}
   oversubscribeNode: {{ $nodeset.oversubscribeNode }}
+  propagateResourceLimits: {{ $nodeset.propagateResourceLimits }}
 {{- end }}{{- /* $nodeset.enabled */}}
 {{- end }}{{- /* range $nodeset := $.Values.nodesets */}}
